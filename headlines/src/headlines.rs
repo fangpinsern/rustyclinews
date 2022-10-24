@@ -1,33 +1,35 @@
 use std::borrow::Cow;
 use std::sync::mpsc::{Receiver, SyncSender};
 
-use eframe::egui::{CtxRef, FontDefinitions, FontFamily, Color32, Label, Layout, Hyperlink, Separator, TopBottomPanel, TextStyle, Button, Frame, Window};
 use eframe::egui;
-use serde::{Serialize, Deserialize};
+use eframe::egui::{
+    Button, Color32, CtxRef, FontDefinitions, FontFamily, Hyperlink, Label, Layout, Separator,
+    TextStyle, TopBottomPanel, Window,
+};
+use serde::{Deserialize, Serialize};
 
 pub const PADDING: f32 = 5.0;
 
-const WHITE: Color32 = Color32::from_rgb(255,255,255);
-const CYAN: Color32 = Color32::from_rgb(0,255,255);
-const BLACK: Color32 = Color32::from_rgb(0,0,0);
-const RED: Color32 = Color32::from_rgb(255,0,0);
+const WHITE: Color32 = Color32::from_rgb(255, 255, 255);
+const CYAN: Color32 = Color32::from_rgb(0, 255, 255);
+const BLACK: Color32 = Color32::from_rgb(0, 0, 0);
+const RED: Color32 = Color32::from_rgb(255, 0, 0);
 
 pub enum Msg {
     ApiKeySet(String),
-    RefreshHit(bool)
+    RefreshHit(bool),
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct HeadlinesConfig {
     pub dark_mode: bool,
     pub api_key: String,
-
 }
 
 impl Default for HeadlinesConfig {
     fn default() -> Self {
-        Self { 
-            dark_mode: Default::default(), 
+        Self {
+            dark_mode: Default::default(),
             api_key: String::new(),
         }
     }
@@ -37,7 +39,7 @@ pub struct Headlines {
     pub config: HeadlinesConfig,
     pub api_key_initialized: bool,
     pub news_rx: Option<Receiver<NewsCardData>>,
-    pub app_tx: Option<SyncSender<Msg>>
+    pub app_tx: Option<SyncSender<Msg>>,
 }
 
 impl Headlines {
@@ -50,21 +52,34 @@ impl Headlines {
 
         let config: HeadlinesConfig = confy::load("headlines", None).unwrap_or_default();
 
-        Headlines { 
+        Headlines {
             api_key_initialized: !config.api_key.is_empty(),
             articles: vec![],
             config,
             news_rx: None,
-            app_tx: None
+            app_tx: None,
         }
     }
 
     pub fn configure_fonts(&self, ctx: &CtxRef) {
         let mut font_def = FontDefinitions::default();
-        font_def.font_data.insert("Montserrat".to_string(), Cow::Borrowed(include_bytes!("../../Montserrat-Regular.ttf")));
-        font_def.family_and_size.insert(eframe::egui::TextStyle::Heading, (FontFamily::Proportional, 35.));
-        font_def.family_and_size.insert(eframe::egui::TextStyle::Body, (FontFamily::Proportional, 20.));
-        font_def.fonts_for_family.get_mut(&FontFamily::Proportional).unwrap().insert(0, "Montserrat".to_string());
+        font_def.font_data.insert(
+            "Montserrat".to_string(),
+            Cow::Borrowed(include_bytes!("../../Montserrat-Regular.ttf")),
+        );
+        font_def.family_and_size.insert(
+            eframe::egui::TextStyle::Heading,
+            (FontFamily::Proportional, 35.),
+        );
+        font_def.family_and_size.insert(
+            eframe::egui::TextStyle::Body,
+            (FontFamily::Proportional, 20.),
+        );
+        font_def
+            .fonts_for_family
+            .get_mut(&FontFamily::Proportional)
+            .unwrap()
+            .insert(0, "Montserrat".to_string());
 
         ctx.set_fonts(font_def);
     }
@@ -96,12 +111,10 @@ impl Headlines {
 
             ui.add_space(PADDING);
             ui.add(Separator::default());
-            
         }
     }
 
     pub fn render_top_panel(&mut self, ctx: &CtxRef, frame: &mut eframe::epi::Frame<'_>) {
-        
         TopBottomPanel::top("top_panel").show(ctx, |ui| {
             ui.add_space(10.);
             egui::menu::bar(ui, |ui| {
@@ -118,20 +131,32 @@ impl Headlines {
                     }
                     let refresh_btn = ui.add(Button::new("refresh").text_style(TextStyle::Body));
                     if refresh_btn.clicked() {
-                        // self.called_api = false;
                         if let Some(tx) = &self.app_tx {
-                            tracing::error!("Clicked refreshbutton");
+                            tracing::trace!("Clicked refreshbutton");
                             self.articles = vec![];
-                            tx.send(Msg::RefreshHit(true));
+                            match tx.send(Msg::RefreshHit(true)) {
+                                Err(e) => {
+                                    tracing::error!(
+                                        "Error occured on clicking refresh button {}",
+                                        e
+                                    );
+                                }
+                                _ => {
+                                    // do nothing
+                                }
+                            }
                         }
                     }
-                    let theme_btn = ui.add(Button::new({
-                        if self.config.dark_mode {
-                            "🌞"
-                        } else {
-                            "🌙"
-                        }
-                    }).text_style(TextStyle::Body));
+                    let theme_btn = ui.add(
+                        Button::new({
+                            if self.config.dark_mode {
+                                "🌞"
+                            } else {
+                                "🌙"
+                            }
+                        })
+                        .text_style(TextStyle::Body),
+                    );
 
                     if theme_btn.clicked() {
                         self.config.dark_mode = !self.config.dark_mode;
@@ -148,10 +173,14 @@ impl Headlines {
             let text_input = ui.text_edit_singleline(&mut self.config.api_key);
 
             if text_input.lost_focus() && ui.input().key_pressed(egui::Key::Enter) {
-                if let Err(e) = confy::store("headlines", None, HeadlinesConfig {
-                    dark_mode: self.config.dark_mode,
-                    api_key: self.config.api_key.to_string()
-                }) {
+                if let Err(e) = confy::store(
+                    "headlines",
+                    None,
+                    HeadlinesConfig {
+                        dark_mode: self.config.dark_mode,
+                        api_key: self.config.api_key.to_string(),
+                    },
+                ) {
                     tracing::error!("Failed to save app state: {}", e);
                 }
 
@@ -160,7 +189,14 @@ impl Headlines {
 
                 // Send config to other thread to load news when api key is available
                 if let Some(tx) = &self.app_tx {
-                    tx.send(Msg::ApiKeySet(self.config.api_key.to_string()));
+                    match tx.send(Msg::ApiKeySet(self.config.api_key.to_string())) {
+                        Err(e) => {
+                            tracing::error!("Error when sending api key set {}", e);
+                        }
+                        _ => {
+                            // do nothing
+                        }
+                    }
                 }
             }
 
@@ -176,8 +212,8 @@ impl Headlines {
             match rx.try_recv() {
                 Ok(news_data) => {
                     self.articles.push(news_data);
-                },
-                Err(e) => {
+                }
+                Err(_e) => {
                     // keep getting an infinite warning messages
                     // tracing::warn!("Error receiving msg: {}", e);
                 }
@@ -189,5 +225,5 @@ impl Headlines {
 pub struct NewsCardData {
     pub title: String,
     pub desc: String,
-    pub url: String
+    pub url: String,
 }

@@ -1,10 +1,9 @@
+use serde::Deserialize;
 use thiserror::Error;
 use url::Url;
-use serde::Deserialize;
 
 #[cfg(feature = "async")]
 use reqwest;
-
 
 #[derive(Deserialize, Debug)]
 pub struct NewsAPIResponse {
@@ -23,7 +22,7 @@ impl NewsAPIResponse {
 pub struct Article {
     title: String,
     url: String,
-    description: Option<String>
+    description: Option<String>,
 }
 
 impl Article {
@@ -56,17 +55,17 @@ pub enum NewsApiError {
     BadRequest(&'static str),
     #[error("Async request failed")]
     #[cfg(feature = "async")]
-    AsyncRequestFailed(#[from] reqwest::Error)
+    AsyncRequestFailed(#[from] reqwest::Error),
 }
 
 pub enum Endpoint {
-    TopHeadlines
+    TopHeadlines,
 }
 
 impl ToString for Endpoint {
     fn to_string(&self) -> String {
         match self {
-            Self::TopHeadlines => "top-headlines".to_string()
+            Self::TopHeadlines => "top-headlines".to_string(),
         }
     }
 }
@@ -74,7 +73,7 @@ impl ToString for Endpoint {
 pub enum Country {
     Us,
     Sg,
-    Gb
+    Gb,
 }
 
 impl ToString for Country {
@@ -82,7 +81,7 @@ impl ToString for Country {
         match self {
             Self::Us => "us".to_string(),
             Self::Sg => "sg".to_string(),
-            Self::Gb => "gb".to_string()
+            Self::Gb => "gb".to_string(),
         }
     }
 }
@@ -90,32 +89,34 @@ impl ToString for Country {
 pub struct NewsAPI {
     api_key: String,
     endpoint: Endpoint,
-    country: Country
+    country: Country,
 }
 
 impl NewsAPI {
     pub fn new(api_key: &str) -> NewsAPI {
-        NewsAPI{
+        NewsAPI {
             api_key: api_key.to_string(),
             endpoint: Endpoint::TopHeadlines,
-            country: Country::Us
+            country: Country::Us,
         }
     }
 
     pub fn endpoint(&mut self, endpoint: Endpoint) -> &mut NewsAPI {
         self.endpoint = endpoint;
-        return self
-    } 
+        return self;
+    }
 
     pub fn country(&mut self, country: Country) -> &mut NewsAPI {
         self.country = country;
-        return self
+        return self;
     }
 
     fn prepare_url(&self) -> Result<String, NewsApiError> {
         let mut url = Url::parse(BASE_URL)?;
 
-        url.path_segments_mut().unwrap().push(&self.endpoint.to_string());
+        url.path_segments_mut()
+            .unwrap()
+            .push(&self.endpoint.to_string());
 
         let country = format!("country={}", self.country.to_string());
         url.set_query(Some(&country));
@@ -130,7 +131,7 @@ impl NewsAPI {
 
         match res.status.as_str() {
             "ok" => return Ok(res),
-            _ => return Err(map_response_err(res.code))
+            _ => return Err(map_response_err(res.code)),
         }
     }
 
@@ -146,7 +147,6 @@ impl NewsAPI {
             .build()
             .map_err(|e| NewsApiError::AsyncRequestFailed(e))?;
 
-        
         /*
         It might be a good idea to split response and decoding up.
         Here there was an error that caused the correct fields to be wrong.
@@ -161,8 +161,8 @@ impl NewsAPI {
                     \"code\":\"userAgentMissing\",
                     \"message\":\"Please set your User-Agent header to identify your application. Anonymous requests are not allowed.\"
         }"
-        
-        Hence found that is was due to missing user agent? 
+
+        Hence found that is was due to missing user agent?
         But abit weird. Why does it work of one country but not the others?
         */
         let res = client
@@ -176,18 +176,16 @@ impl NewsAPI {
 
         match resDecoded.status.as_str() {
             "ok" => return Ok(resDecoded),
-            _ => return Err(map_response_err(resDecoded.code))
+            _ => return Err(map_response_err(resDecoded.code)),
         }
     }
 }
 
-
 fn map_response_err(code: Option<String>) -> NewsApiError {
-
     if let Some(code) = code {
         match code.as_str() {
             "apiKeyDisabled" => NewsApiError::BadRequest("Your API key has been disabled"),
-            _ => NewsApiError::BadRequest("Unknown error")
+            _ => NewsApiError::BadRequest("Unknown error"),
         }
     } else {
         NewsApiError::BadRequest("Unknown error")

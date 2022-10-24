@@ -1,10 +1,20 @@
 mod headlines;
 
-use std::{thread, sync::mpsc::{channel, sync_channel}};
+use std::{
+    sync::mpsc::{channel, sync_channel},
+    thread,
+};
 
-use eframe::{epi::App, run_native, egui::{CentralPanel, ScrollArea, Vec2, Ui, Separator, TopBottomPanel, CtxRef, Label, Hyperlink, Visuals}, NativeOptions};
+use eframe::{
+    egui::{
+        CentralPanel, CtxRef, Hyperlink, Label, ScrollArea, Separator, TopBottomPanel, Ui, Vec2,
+        Visuals,
+    },
+    epi::App,
+    run_native, NativeOptions,
+};
 
-use headlines::{Headlines, PADDING, NewsCardData, Msg};
+use headlines::{Headlines, Msg, NewsCardData, PADDING};
 use newsapi::NewsAPI;
 
 fn fetch_news(api_key: &str, news_tx: &mut std::sync::mpsc::Sender<NewsCardData>) {
@@ -14,7 +24,7 @@ fn fetch_news(api_key: &str, news_tx: &mut std::sync::mpsc::Sender<NewsCardData>
             let news = NewsCardData {
                 title: a.title().to_string(),
                 url: a.url().to_string(),
-                desc: a.desc().map(|s| s.to_string()).unwrap_or("...".to_string())
+                desc: a.desc().map(|s| s.to_string()).unwrap_or("...".to_string()),
             };
 
             if let Err(e) = news_tx.send(news) {
@@ -26,63 +36,62 @@ fn fetch_news(api_key: &str, news_tx: &mut std::sync::mpsc::Sender<NewsCardData>
 
 impl App for Headlines {
     fn setup(
-            &mut self,
-            ctx: &eframe::egui::CtxRef,
-            _frame: &mut eframe::epi::Frame<'_>,
-            _storage: Option<&dyn eframe::epi::Storage>,
-        ) {
-            let mut api_key = self.config.api_key.to_string();
+        &mut self,
+        ctx: &eframe::egui::CtxRef,
+        _frame: &mut eframe::epi::Frame<'_>,
+        _storage: Option<&dyn eframe::epi::Storage>,
+    ) {
+        let mut api_key = self.config.api_key.to_string();
 
-            let (mut news_tx, news_rx) = channel();
-            let (app_tx, app_rx) = sync_channel(1);
+        let (mut news_tx, news_rx) = channel();
+        let (app_tx, app_rx) = sync_channel(1);
 
-            self.news_rx = Some(news_rx);
-            self.app_tx = Some(app_tx);
-        
-            // this wont work if refresh is used if api key is empty
-            thread::spawn(move || {
-                if !api_key.is_empty() {
-                    fetch_news(&api_key, &mut news_tx);
-                } else {
-                    loop {
-                        match app_rx.recv() {
-                            Ok(Msg::ApiKeySet(api_keys)) => {
-                                api_key = api_keys.to_string();
-                                fetch_news(&api_keys, &mut news_tx);
-                            },
-                            Err(e) => {
-                                tracing::error!("Failed recieving apikey message");
-                            },
-                            _ => {
-                                tracing::warn!("Unintended effect");
-                            }
-                        }
-                        break;
-                    }
-                }
+        self.news_rx = Some(news_rx);
+        self.app_tx = Some(app_tx);
+
+        // this wont work if refresh is used if api key is empty
+        thread::spawn(move || {
+            if !api_key.is_empty() {
+                fetch_news(&api_key, &mut news_tx);
+            } else {
                 loop {
                     match app_rx.recv() {
-                        Ok(Msg::RefreshHit(hit)) => {
-                            if hit {
-                                fetch_news(&api_key, &mut news_tx);
-                                tracing::error!("Checking");
-                            }
+                        Ok(Msg::ApiKeySet(api_keys)) => {
+                            api_key = api_keys.to_string();
+                            fetch_news(&api_keys, &mut news_tx);
                         }
                         Err(e) => {
-                            tracing::error!("Failed recieving refresh message 1");
+                            tracing::error!("Failed recieving apikey message {}", e);
                         }
                         _ => {
-                            tracing::warn!("Unintended effect2");
+                            tracing::warn!("Unintended effect");
                         }
                     }
+                    break;
                 }
-            });
+            }
+            loop {
+                match app_rx.recv() {
+                    Ok(Msg::RefreshHit(hit)) => {
+                        if hit {
+                            fetch_news(&api_key, &mut news_tx);
+                            tracing::trace!("Checking");
+                        }
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed recieving refresh message 1 {}", e);
+                    }
+                    _ => {
+                        tracing::warn!("Unintended effect2");
+                    }
+                }
+            }
+        });
 
         self.configure_fonts(&ctx);
     }
 
     fn update(&mut self, ctx: &eframe::egui::CtxRef, frame: &mut eframe::epi::Frame<'_>) {
-
         ctx.request_repaint();
         if self.config.dark_mode {
             ctx.set_visuals(Visuals::dark());
@@ -101,13 +110,9 @@ impl App for Headlines {
                 ScrollArea::auto_sized().show(ui, |ui| {
                     self.render_news_cards(ui);
                 });
-    
                 render_footer(ctx);
-                
             });
-
         }
-        
     }
 
     fn name(&self) -> &str {
@@ -131,8 +136,16 @@ fn render_footer(ctx: &CtxRef) {
             ui.add_space(10.);
             ui.add(Label::new("API source: newsapi.org").monospace());
 
-            ui.add(Hyperlink::new("https://github.com/emilk/egui").text("Made with egui").text_style(eframe::egui::TextStyle::Monospace));
-            ui.add(Hyperlink::new("https://github.com/fangpinsern/rustyclinews").text("fangpinsern/rustyclinews").text_style(eframe::egui::TextStyle::Monospace));
+            ui.add(
+                Hyperlink::new("https://github.com/emilk/egui")
+                    .text("Made with egui")
+                    .text_style(eframe::egui::TextStyle::Monospace),
+            );
+            ui.add(
+                Hyperlink::new("https://github.com/fangpinsern/rustyclinews")
+                    .text("fangpinsern/rustyclinews")
+                    .text_style(eframe::egui::TextStyle::Monospace),
+            );
             ui.add_space(10.);
         });
     });
@@ -140,11 +153,9 @@ fn render_footer(ctx: &CtxRef) {
 
 fn main() {
     tracing_subscriber::fmt::init();
-    
+
     let app = Headlines::new();
     let mut win_options = NativeOptions::default();
     win_options.initial_window_size = Some(Vec2::new(540., 960.));
     run_native(Box::new(app), win_options)
 }
-
-
