@@ -7,16 +7,19 @@ use eframe::{epi::App, run_native, egui::{CentralPanel, ScrollArea, Vec2, Ui, Se
 use headlines::{Headlines, PADDING, NewsCardData, Msg};
 use newsapi::NewsAPI;
 
-fn fetch_news(api_key: &str, articles: &mut Vec<NewsCardData>) {
-    if let Ok(response) = NewsAPI::new(&api_key).fetch() {
-        let res_article = response.articles;
-        for a in res_article.iter() {
-            let news = NewsCardData{
+fn fetch_news(api_key: &str, news_tx: &mut std::sync::mpsc::Sender<NewsCardData>) {
+    if let Ok(response) = NewsAPI::new(&api_key).country(newsapi::Country::Sg).fetch() {
+        let res_arts = response.articles;
+        for a in res_arts.iter() {
+            let news = NewsCardData {
                 title: a.title().to_string(),
                 url: a.url().to_string(),
                 desc: a.desc().map(|s| s.to_string()).unwrap_or("...".to_string())
             };
-            articles.push(news);
+
+            if let Err(e) = news_tx.send(news) {
+                tracing::error!("Error sending news data: {}", e);
+            }
         }
     }
 }
@@ -28,31 +31,37 @@ impl App for Headlines {
             _frame: &mut eframe::epi::Frame<'_>,
             _storage: Option<&dyn eframe::epi::Storage>,
         ) {
-        //     let api_key = self.config.api_key.to_string();
+            let api_key = self.config.api_key.to_string();
 
+            let (mut news_tx, news_rx) = channel();
+            let (app_tx, app_rx) = sync_channel(1);
 
+            self.news_rx = Some(news_rx);
+            self.app_tx = Some(app_tx);
+        
+            thread::spawn(move || {
+                if !api_key.is_empty() {
+                    fetch_news(&api_key, &mut news_tx);
+                } else {
+                    loop {
+                        match app_rx.recv() {
+                            Ok(Msg::ApiKeySet(api_keys)) => {
+                                fetch_news(&api_keys, &mut news_tx);
+                            },
+                            Ok(Msg::RefreshHit(hit)) => {
+                                if hit {
+                                    fetch_news(&api_key, &mut news_tx);
+                                    tracing::error!("Checking");
+                                }
+                            }
+                            Err(e) => {
+                                tracing::error!("Failed recieving apikey message");
+                            }
+                        }
+                    }
+                }
+            });
 
-        // let (app_tx, app_rx) = sync_channel(1);
-
-        // self.app_tx = Some(app_tx);
-
-        // if !api_key.is_empty() {
-        //     fetch_news(&api_key, &mut self.articles);
-        // } 
-        // if all on the same thread then we have to move on only fetch news after we get the config
-        // else {
-        //     loop {
-        //         match app_rx.recv() {
-        //             Ok(Msg::ApiKeySet(api_key)) => {
-        //                 fetch_news(&api_key,&mut self.articles);
-        //             },
-        //             Err(e) => {
-        //                 tracing::error!("Failed receiving app tx message");
-        //             }
-
-        //         }
-        //     }
-        // }
         self.configure_fonts(&ctx);
     }
 
@@ -68,12 +77,8 @@ impl App for Headlines {
         if !self.api_key_initialized {
             self.render_config(ctx);
         } else {
-            // self.preload_articles();
-            if !self.called_api {
-                self.articles = vec![];
-                fetch_news(&self.config.api_key, &mut self.articles);
-                self.called_api = true;
-            }
+            self.preload_articles();
+
             self.render_top_panel(ctx, frame);
             CentralPanel::default().show(ctx, |ui| {
                 render_header(ui);

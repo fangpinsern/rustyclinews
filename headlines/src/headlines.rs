@@ -13,7 +13,8 @@ const BLACK: Color32 = Color32::from_rgb(0,0,0);
 const RED: Color32 = Color32::from_rgb(255,0,0);
 
 pub enum Msg {
-    ApiKeySet(String)
+    ApiKeySet(String),
+    RefreshHit(bool)
 }
 
 #[derive(Serialize, Deserialize)]
@@ -35,7 +36,8 @@ pub struct Headlines {
     pub articles: Vec<NewsCardData>,
     pub config: HeadlinesConfig,
     pub api_key_initialized: bool,
-    pub called_api: bool
+    pub news_rx: Option<Receiver<NewsCardData>>,
+    pub app_tx: Option<SyncSender<Msg>>
 }
 
 impl Headlines {
@@ -52,7 +54,8 @@ impl Headlines {
             api_key_initialized: !config.api_key.is_empty(),
             articles: vec![],
             config,
-            called_api: false,
+            news_rx: None,
+            app_tx: None
         }
     }
 
@@ -115,8 +118,11 @@ impl Headlines {
                     }
                     let refresh_btn = ui.add(Button::new("refresh").text_style(TextStyle::Body));
                     if refresh_btn.clicked() {
-                        self.called_api = false;
-                        tracing::error!("Clicked refreshbutton");
+                        // self.called_api = false;
+                        // tracing::error!("Clicked refreshbutton");
+                        if let Some(tx) = &self.app_tx {
+                            tx.send(Msg::RefreshHit(true));
+                        }
                     }
                     let theme_btn = ui.add(Button::new({
                         if self.config.dark_mode {
@@ -150,9 +156,11 @@ impl Headlines {
 
                 tracing::trace!("API Key set: {}", self.config.api_key);
                 self.api_key_initialized = true;
-                // if let Some(tx) = &self.app_tx {
-                //     tx.send(Msg::ApiKeySet(self.config.api_key.to_string()));
-                // }
+
+                // Send config to other thread to load news when api key is available
+                if let Some(tx) = &self.app_tx {
+                    tx.send(Msg::ApiKeySet(self.config.api_key.to_string()));
+                }
             }
 
             // tracing::error!("{}", &self.config.api_key);
@@ -162,19 +170,19 @@ impl Headlines {
         });
     }
 
-    // pub fn preload_articles(&mut self) {
-    //     if let Some(rx) = &self.news_rx {
-    //         match rx.try_recv() {
-    //             Ok(news_data) => {
-    //                 self.articles.push(news_data);
-    //             },
-    //             Err(e) => {
-    //                 // keep getting an infinite warning messages
-    //                 tracing::warn!("Error receiving msg: {}", e);
-    //             }
-    //         }
-    //     }
-    // }
+    pub fn preload_articles(&mut self) {
+        if let Some(rx) = &self.news_rx {
+            match rx.try_recv() {
+                Ok(news_data) => {
+                    self.articles.push(news_data);
+                },
+                Err(e) => {
+                    // keep getting an infinite warning messages
+                    tracing::warn!("Error receiving msg: {}", e);
+                }
+            }
+        }
+    }
 }
 
 pub struct NewsCardData {
