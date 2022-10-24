@@ -1,12 +1,6 @@
-[package]
-name = "clinews"
-version = "0.1.0"
-edition = "2021"
-description = "helloworld"
+[workspace]
 
-[dependencies]
-newsapi = {path = "./newsapi", features = ['async']}
-dotenv = "0.15.0"
-termimad = "0.20.3"
-crossterm = "0.23.0"
-tokio = { version = "1.21.2", features = ["full"] }
+members = [
+    "newsapi",
+    "headlines"
+]
