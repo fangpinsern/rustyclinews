@@ -178,7 +178,7 @@ impl Headlines {
                 },
                 Err(e) => {
                     // keep getting an infinite warning messages
-                    tracing::warn!("Error receiving msg: {}", e);
+                    // tracing::warn!("Error receiving msg: {}", e);
                 }
             }
         }

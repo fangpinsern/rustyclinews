@@ -2,8 +2,24 @@
 name = "headlines"
 version = "0.1.0"
 edition = "2021"
+description = "Headline news"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[package.metadata.bundle]
+name = "Headlines"
+identifier = "com.doe.headlinenews"
+version = "1.0.0"
+copyright = "Copyright (c) O1Collective 2022. All rights reserved."
+category = "Developer Tool"
+short_description = "News application."
+long_description = """
+Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua.  Ut
+enim ad minim veniam, quis nostrud exercitation ullamco laboris
+nisi ut aliquip ex ea commodo consequat.
+"""
+
 
 [dependencies]
 eframe = "0.14.0"

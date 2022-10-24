@@ -39,6 +39,7 @@ impl App for Headlines {
             self.news_rx = Some(news_rx);
             self.app_tx = Some(app_tx);
         
+            // this wont work if refresh is used if api key is empty
             thread::spawn(move || {
                 if !api_key.is_empty() {
                     fetch_news(&api_key, &mut news_tx);
