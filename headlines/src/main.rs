@@ -31,7 +31,7 @@ impl App for Headlines {
             _frame: &mut eframe::epi::Frame<'_>,
             _storage: Option<&dyn eframe::epi::Storage>,
         ) {
-            let api_key = self.config.api_key.to_string();
+            let mut api_key = self.config.api_key.to_string();
 
             let (mut news_tx, news_rx) = channel();
             let (app_tx, app_rx) = sync_channel(1);
@@ -47,17 +47,32 @@ impl App for Headlines {
                     loop {
                         match app_rx.recv() {
                             Ok(Msg::ApiKeySet(api_keys)) => {
+                                api_key = api_keys.to_string();
                                 fetch_news(&api_keys, &mut news_tx);
                             },
-                            Ok(Msg::RefreshHit(hit)) => {
-                                if hit {
-                                    fetch_news(&api_key, &mut news_tx);
-                                    tracing::error!("Checking");
-                                }
-                            }
                             Err(e) => {
                                 tracing::error!("Failed recieving apikey message");
+                            },
+                            _ => {
+                                tracing::warn!("Unintended effect");
                             }
+                        }
+                        break;
+                    }
+                }
+                loop {
+                    match app_rx.recv() {
+                        Ok(Msg::RefreshHit(hit)) => {
+                            if hit {
+                                fetch_news(&api_key, &mut news_tx);
+                                tracing::error!("Checking");
+                            }
+                        }
+                        Err(e) => {
+                            tracing::error!("Failed recieving refresh message 1");
+                        }
+                        _ => {
+                            tracing::warn!("Unintended effect2");
                         }
                     }
                 }

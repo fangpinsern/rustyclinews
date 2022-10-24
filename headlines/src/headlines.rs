@@ -119,8 +119,9 @@ impl Headlines {
                     let refresh_btn = ui.add(Button::new("refresh").text_style(TextStyle::Body));
                     if refresh_btn.clicked() {
                         // self.called_api = false;
-                        // tracing::error!("Clicked refreshbutton");
                         if let Some(tx) = &self.app_tx {
+                            tracing::error!("Clicked refreshbutton");
+                            self.articles = vec![];
                             tx.send(Msg::RefreshHit(true));
                         }
                     }
